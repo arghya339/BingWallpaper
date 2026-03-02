@@ -5,3 +5,6 @@ curl -L --progress-bar -o "$HOME/.BingWallpaper.sh" "https://raw.githubuserconte
 ```
 bingwall
 ```
+```
+setwall
+```

@@ -59,12 +59,16 @@ checkInternet &>/dev/null && remoteVersion=$(curl -sL "https://raw.githubusercon
 updates() {
   curl -sL -o "$BingWallpaper/.version" "https://raw.githubusercontent.com/arghya339/BingWallpaper/refs/heads/main/bash/.version"
   curl -sL -o "$HOME/.BingWallpaper.sh" "https://raw.githubusercontent.com/arghya339/BingWallpaper/refs/heads/main/bash/BingWallpaper.sh"
+  curl -sL -o "$BingWallpaper/SetWallpaper.sh" "https://raw.githubusercontent.com/arghya339/BingWallpaper/refs/heads/main/bash/SetWallpaper.sh"
   if [ $isAndroid == true ]; then
     [ ! -f "$PREFIX/bin/bingwall" ] && ln -s ~/.BingWallpaper.sh $PREFIX/bin/bingwall
+    [ ! -f "$PREFIX/bin/setwall" ] && ln -s $BingWallpaper/SetWallpaper.sh $PREFIX/bin/setwall
   elif [ $isMacOS == true ]; then
     [ ! -f "/usr/local/bin/bingwall" ] && ln -s $HOME/.BingWallpaper.sh /usr/local/bin/bingwall
+    [ ! -f "/usr/local/bin/setwall" ] && ln -s $BingWallpaper/SetWallpaper.sh /usr/local/bin/setwall
   fi
   [ ! -x $HOME/.BingWallpaper.sh ] && chmod +x $HOME/.BingWallpaper.sh
+  [ ! -x $BingWallpaper/SetWallpaper.sh ] && chmod +x $BingWallpaper/SetWallpaper.sh
   if [ $isAndroid == true ]; then
     curl -sL -o "$BingWallpaper/apkInstall.sh" "https://raw.githubusercontent.com/arghya339/Simplify/refs/heads/main/Termux/apkInstall.sh"
     source $BingWallpaper/apkInstall.sh
