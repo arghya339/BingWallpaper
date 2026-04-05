@@ -199,12 +199,13 @@ SetWallpaper() {
   fi
 }
 
+selected_opt=0
 while true; do
   options=(Official Third-party Browse)
   descriptions=("https://www.bing.com/" "https://bing.npanuhin.me/" "BrowseBingImages")
   [ $SaveBingImages == true ] && { options+=(SetWallpaperFromSavedBingImages); descriptions+=(SetWallpaperFromSavedBingImages); }
   options+=(SetWallpaperFromURL SetWallpaperFromFile Settings); descriptions+=(SetWallpaperFromRemoteURL SetWallpaperFromImageFile BingWallpaperSettings)
-  menu options eButtons descriptions
+  menu options eButtons descriptions "" $selected_opt && selected_opt=$selected
   case "${options[selected]}" in
     Official)
       bingJson=$(curl -sL "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=7&mkt=${Locale}")
@@ -333,7 +334,9 @@ while true; do
           sOptions+=(BackupCurrentWallpaper); sDescriptions+=(ExportCurrentWallpaper)
         fi
         ([ -f "$BingImages/wallpaper.jpg" ] || [ -f "$BingImages/wallpaper_lock.jpg" ] || [ -f "$BingImages/wallpaper_dark.jpg" ]) && { sOptions+=(RestoreOldWallpaper); sDescriptions+=(RestoringOldWallpaper); }
-        if menu sOptions bButtons sDescriptions; then
+        selected_setting=0
+        if menu sOptions bButtons sDescriptions "" $selected_setting; then
+          selected_setting=$selected
           case "${sOptions[selected]}" in
             AutoUpdatesScript)
               confirmPrompt "Auto updates Script on launch" tfButtons "$AutoUpdatesScript" && autoupdates=true || autoupdates=false
@@ -391,9 +394,17 @@ while true; do
               config "Orientation" "$Orientation"; reloadConfig
               ;;
             BingImagesQuality)
+              case "$Resolution" in
+                Auto) selected_res=0 ;;
+                UHD) selected_res=1 ;;
+                QHD) selected_res=2 ;;
+                FHD) selected_res=3 ;;
+                HD) selected_res=4 ;;
+                SD) selected_res=5 ;;
+              esac
               qOptions=("Auto($Quality)" UHD QHD FHD HD SD)
               qDescriptions=(LetTheScriptDecideBasedOnSystemResources 4k 2k 1080p 720p 480p)
-              if menu qOptions bButtons qDescriptions; then
+              if menu qOptions bButtons qDescriptions "" $selected_res; then
                 case "${qOptions[selected]}" in
                   Auto*) config "Resolution" "Auto" && reloadConfig ;;
                   *) config "Resolution" "${qOptions[selected]}" && reloadConfig ;;
@@ -449,9 +460,19 @@ while true; do
               fi
               ;;
             DoH)
+              case "$DoH" in
+                "") selected_doh=0 ;;
+                "https://dns.google/dns-query") selected_doh=1 ;;
+                "https://cloudflare-dns.com/dns-query") selected_doh=2 ;;
+                "https://dns.opendns.com/dns-query") selected_doh=3 ;;
+                "https://dns.adguard-dns.com/dns-query") selected_doh=4 ;;
+                "https://doh.cleanbrowsing.org/doh/security-filter") selected_doh=5 ;;
+                "https://dns.quad9.net/dns-query") selected_doh=6 ;;
+                *) selected_doh=7 ;;
+              esac
               dOptions=(ISP Google Cloudflare OpenDNS AdGuard CleanBrowsing quad9 Custom)
               dDescriptions=("InternetServiceProvider'sDomainNameServers" "https://dns.google/dns-query" "https://cloudflare-dns.com/dns-query" "https://dns.opendns.com/dns-query" "https://dns.adguard-dns.com/dns-query" "https://doh.cleanbrowsing.org/doh/security-filter" "https://dns.quad9.net/dns-query" "UserDefined")
-              if menu dOptions bButtons dDescriptions; then
+              if menu dOptions bButtons dDescriptions "" $selected_doh; then
                 case "${dOptions[selected]}" in
                   ISP) DoH="" ;;
                   Google) DoH="https://dns.google/dns-query" ;;
@@ -560,7 +581,8 @@ while true; do
                 config "Timer" "None"
                 reloadConfig
               else
-                read -r -p "Timer(24-Hour): " -i "21:30" -e Time
+                [ -n "$Timer" ] && timer="$Timer" || timer="21:30"
+                read -r -p "Timer(24-Hour): " -i "$timer" -e Time
                 [ -z "$Time" ] && Time="None"
                 if [ "$Time" != "None" ]; then
                   config "Timer" "$Time"
