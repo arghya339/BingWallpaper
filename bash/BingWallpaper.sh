@@ -198,8 +198,8 @@ SetWallpaper() {
 
 selected_opt=0
 while true; do
-  options=("Bing Wallpapers" "Bing Wallpaper Archive" Browse)
-  mdescriptions=("https://www.bing.com/" "https://bing.npanuhin.me/" "BrowseBingImages")
+  options=("Bing Wallpapers" "Bing Wallpaper Archive" "Bing Gallery" Browse)
+  mdescriptions=("https://www.bing.com/" "https://bing.npanuhin.me/" "https://binggallery.sapphire.microsoftapp.net/api/random/" "BrowseBingImages")
   [ $SaveBingImages == true ] && { options+=(SetWallpaperFromSavedBingImages); mdescriptions+=(SetWallpaperFromSavedBingImages); }
   options+=(SetWallpaperFromURL SetWallpaperFromFile Settings); mdescriptions+=(SetWallpaperFromRemoteURL SetWallpaperFromImageFile BingWallpaperSettings)
   menu options eButtons mdescriptions "" $selected_opt && selected_opt=$selected
@@ -253,6 +253,67 @@ while true; do
           break
         fi
       done
+      ;;
+    Bing\ Gallery)
+      [ $(curl -sL ipinfo.io/country) == "CN" ] && binggallery="https://binggallerychina.blob.core.chinacloudapi.cn/" || binggallery="https://binggallerycdn.sapphire.microsoftapp.net/"  # https://github.com/ipinfo/cli
+      confirmPrompt "Filters Bing Gallery Images by Category and Country?" ynButtons 1 && filters=true || filters=false
+      if [ $filters == false ]; then
+        fetchRandomBingImages() {
+          randomJson=$(curl -sL "https://binggallery.sapphire.microsoftapp.net/api/random/10")
+          dates=($(jq -r '.[].date' <<< "$randomJson"))
+          mapfile -t titles < <(jq -r '.[].title' <<< "$randomJson" | awk -F' \\(' '{print $1}')
+          dates+=(Refresh); titles+=("Fetch Fresh Random Bing Gallery Images"); selected_random=0
+        }; fetchRandomBingImages
+        while true; do
+          menu dates bButtons titles "" $selected_random || break
+          selected_random=$selected
+          if [ "${dates[selected_random]}" == "Refresh" ]; then
+            fetchRandomBingImages
+          else
+            w=$(jq -r ".[$selected_random].s5" <<< "$randomJson")
+            pr=$(jq -r ".[$selected_random].s14" <<< "$randomJson")
+            ([ -n "$pr" ] && [ "$Orientation" == "Portrait" ]) && binggalleryfiles="${binggallery}${pr}" || binggalleryfiles="${binggallery}${w}"
+            file_ext="${binggalleryfiles##*.}"
+            fileName="${dates[$selected_random]}.${file_ext}"
+            SetWallpaper "$binggalleryfiles" "$BingImages/$fileName"
+          fi
+        done
+      else
+        indexJson=$(curl -sL "https://binggallery.sapphire.microsoftapp.net/api/index")
+        mapfile -t categories < <(jq -r '.categories.[]' <<< "$indexJson")
+        mapfile -t countries < <(jq -r '.countries.[]' <<< "$indexJson")
+        menu categories bButtons && category="${categories[selected]}" || category="Unknown"
+        menu countries bButtons && country="${countries[selected]}" || country="Unspecified"
+        fetchFiltersBingImages() {
+          offset=${1:-0}
+          count=${2:-10}
+          filtersJson=$(curl -sX POST "https://binggallery.sapphire.microsoftapp.net/api/filters/${offset}/${count}" -H "Content-Type: application/json" -d "{ \"category\": \"$category\", \"color\": null, \"country\": \"$country\" }")
+          dates=($(jq -r '.[].date' <<< "$filtersJson"))
+          mapfile -t titles < <(jq -r '.[].title' <<< "$filtersJson" | awk -F' \\(' '{print $1}')
+          [ $offset -eq 0 ] && { dates+=("Next"); titles+=("Fetch Next Bing Gallery Images"); selected_filters=0; } || { dates+=("Prev" "Next"); titles+=("Fetch Previous Bing Gallery Images" "Fetch Next Bing Gallery Images"); }
+        }; fetchFiltersBingImages
+        offset=0; count=10
+        while true; do
+          menu dates bButtons titles "" $selected_filters || break
+          selected_filters=$selected
+          if [ "${dates[selected_filters]}" == "Prev" ]; then
+            offset=$((offset - 10))
+            selected_filters=0
+            fetchFiltersBingImages $offset $count
+          elif [ "${dates[selected_filters]}" == "Next" ]; then
+            offset=$((offset + 10))
+            selected_filters=0
+            fetchFiltersBingImages $offset $count
+          else
+            w=$(jq -r ".[$selected_filters].s5" <<< "$filtersJson")
+            pr=$(jq -r ".[$selected_filters].s14" <<< "$filtersJson")
+            ([ -n "$pr" ] && [ "$Orientation" == "Portrait" ]) && binggalleryfiles="${binggallery}${pr}" || binggalleryfiles="${binggallery}${w}"
+            file_ext="${binggalleryfiles##*.}"
+            fileName="${dates[$selected_filters]}.${file_ext}"
+            SetWallpaper "$binggalleryfiles" "$BingImages/$fileName"
+          fi
+        done
+      fi
       ;;
     Bing\ Wallpaper\ Archive)
       #availableLocale=($(curl -L --progress-bar https://bing.npanuhin.me/all.json | jq -r 'keys[]'))
