@@ -48,7 +48,7 @@ EOL
 
 [ -f "$BingWallpaperJson" ] && AutoUpdatesDependencies=$(jq -r '.AutoUpdatesDependencies' "$BingWallpaperJson" 2>/dev/null) || AutoUpdatesDependencies=true
 
-formulaeUpdate() {
+pkgUpdate() {
   formulae=$1
   if echo "$outdatedFormulae" | grep -q "^$formulae" 2>/dev/null; then
     echo -e "$running Upgrading $formulae formulae.."
@@ -56,17 +56,17 @@ formulaeUpdate() {
   fi
 }
 
-formulaeInstall() {
+pkgInstall() {
   formulae=$1
   if echo "$formulaeList" | grep -q "$formulae" 2>/dev/null; then
-    formulaeUpdate "$formulae"
+    pkgUpdate "$formulae"
   else
     echo -e "$running Installing $formulae formulae.."
     brew install "$formulae" > /dev/null 2>&1
   fi
 }
 
-formulaeUninstall() {
+pkgUninstall() {
   formulaeList=$(brew list 2>/dev/null)
   formulae=$1
   if echo "$formulaeList" | grep -q "$formulae" 2>/dev/null; then
@@ -79,13 +79,13 @@ dependencies() {
   formulaeList=$(brew list 2>/dev/null)
   outdatedFormulae=$(brew outdated 2>/dev/null)
   
-  brew --version >/dev/null 2>&1 && brew update > /dev/null 2>&1 || /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-  formulaeInstall "bash"
-  formulaeInstall "grep"
-  formulaeInstall "curl"
-  formulaeInstall "jq"
+  brew --version &>/dev/null && brew update &>/dev/null || /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  pkgInstall "bash"
+  pkgInstall "grep"
+  pkgInstall "curl"
+  pkgInstall "jq"
 }
-[ "$AutoUpdatesDependencies" == true ] && checkInternet && dependencies
+[ $AutoUpdatesDependencies == true ] && checkInternet && dependencies
 
 SystemLocale=$(defaults read -g AppleLocale | cut -d'@' -f1 | awk -F'_' '{print $1"-"$2}')
 displaysResolutionFormat=$(system_profiler SPDisplaysDataType | grep -o "[0-9]* x [0-9]*" | head -1 | tr -d ' ')

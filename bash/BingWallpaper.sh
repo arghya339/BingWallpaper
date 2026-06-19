@@ -26,15 +26,17 @@ checkInternet() {
   fi
 }
 
+isMacOS=false; isAndroid=false; isFedora=false
 if [[ "$(uname)" == "Darwin" ]]; then
-  isMacOS=true; isAndroid=false; isFedora=false
+  isMacOS=true; scripts=(macOS)
 elif [[ -d "/sdcard" ]] && [[ -d "/system" ]]; then
-  isAndroid=true; isMacOS=false; isFedora=false
+  isAndroid=true; scripts=(Termux)
 elif [[ -f "/etc/os-release" ]]; then
   if grep -qi "fedora" /etc/os-release 2>/dev/null; then
-    isFedora=true; isAndroid=false; isMacOS=false
+    isFedora=true; scripts=(Fedora)
   fi
 fi
+scripts+=(fileSelector menu confirmPrompt)
 
 BingWallpaper="$HOME/.BingWallpaper"
 BingWallpaperJson="$BingWallpaper/BingWallpaper.json"
@@ -45,11 +47,6 @@ eButtons=("<Select>" "<Exit>")
 bButtons=("<Select>" "<Back>")
 ynButtons=("<Yes>" "<No>")
 tfButtons=("<true>" "<false>")
-
-[ $isAndroid == true ] && scripts=(Termux)
-[ $isMacOS == true ] && scripts=(macOS)
-[ $isFedora == true ] && scripts=(Fedora)
-scripts+=(fileSelector menu confirmPrompt)
 
 run() {
   [ $isAndroid == true ] && source $BingWallpaper/apkInstall.sh
@@ -91,7 +88,7 @@ updates() {
   done
 }
 [ -f "$BingWallpaperJson" ] && AutoUpdatesScript=$(jq -r '.AutoUpdatesScript' "$BingWallpaperJson" 2>/dev/null) || AutoUpdatesScript=true
-if [ "$AutoUpdatesScript" == true ]; then
+if [ $AutoUpdatesScript == true ]; then
   [ "$remoteVersion" != "$localVersion" ] && { checkInternet && updates && localVersion="$remoteVersion"; } || run
 else
   run
@@ -201,20 +198,31 @@ SetWallpaper() {
 
 selected_opt=0
 while true; do
-  options=(Official Third-party Browse)
-  descriptions=("https://www.bing.com/" "https://bing.npanuhin.me/" "BrowseBingImages")
-  [ $SaveBingImages == true ] && { options+=(SetWallpaperFromSavedBingImages); descriptions+=(SetWallpaperFromSavedBingImages); }
-  options+=(SetWallpaperFromURL SetWallpaperFromFile Settings); descriptions+=(SetWallpaperFromRemoteURL SetWallpaperFromImageFile BingWallpaperSettings)
-  menu options eButtons descriptions "" $selected_opt && selected_opt=$selected
+  options=("Bing Wallpapers" "Bing Wallpaper Archive" Browse)
+  mdescriptions=("https://www.bing.com/" "https://bing.npanuhin.me/" "BrowseBingImages")
+  [ $SaveBingImages == true ] && { options+=(SetWallpaperFromSavedBingImages); mdescriptions+=(SetWallpaperFromSavedBingImages); }
+  options+=(SetWallpaperFromURL SetWallpaperFromFile Settings); mdescriptions+=(SetWallpaperFromRemoteURL SetWallpaperFromImageFile BingWallpaperSettings)
+  menu options eButtons mdescriptions "" $selected_opt && selected_opt=$selected
   case "${options[selected]}" in
-    Official)
-      bingJson=$(curl -sL "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=7&mkt=${Locale}")
-      mapfile -t startdates < <(jq -r '.images[].startdate' <<< "$bingJson")
-      mapfile -t urlbases < <(jq -r '.images[].urlbase' <<< "$bingJson")
-      mapfile -t descriptions < <(jq -r '.images[].copyright' <<< "$bingJson" | awk -F' \\(' '{print $1}')
-      #mapfile -t copyrights < <(jq -r '.images[].copyright' <<< "$bingJson" | awk -F' \\(' '{print $2}' | tr -d ')')
-      mapfile -t titles < <(jq -r '.images[].title' <<< "$bingJson")
+    Bing\ Wallpapers)
+      declare -a startdates urls urlbases descriptions copyrights titles
+      fetchBingImages() {
+        bingJson=$(curl -sL "https://www.bing.com/HPImageArchive.aspx?format=js&idx=${1}&n=7&mkt=${Locale}")
+        mapfile -t -O ${#startdates[@]} startdates < <(jq -r '.images[].startdate' <<< "$bingJson")
+        #mapfile -t -O ${#urls[@]} urls < <(jq -r '.images[].url' <<< "$bingJson")
+        mapfile -t -O ${#urlbases[@]} urlbases < <(jq -r '.images[].urlbase' <<< "$bingJson")
+        mapfile -t -O ${#descriptions[@]} descriptions < <(jq -r '.images[].copyright' <<< "$bingJson" | awk -F' \\(' '{print $1}')
+        #mapfile -t -O ${#copyrights[@]} copyrights < <(jq -r '.images[].copyright' <<< "$bingJson" | awk -F' \\(' '{print $2}' | tr -d ')')
+        mapfile -t -O ${#titles[@]} titles < <(jq -r '.images[].title' <<< "$bingJson")
+      }; fetchBingImages 0; fetchBingImages 7
       if [ "$Locale" == "zh-CN" ]; then
+        printf "$running Translating bing-images title and description from simplified-chinese to english..\n"
+        for ((i=28; i>=1; i--)); do
+          printf "$notice Please wait $i seconds !!"
+          sleep 1
+          printf "\r\033[K"
+          [ $i -eq 1 ] && printf "\033[1A\r\033[K"
+        done &
         translated_titles=(); translated_descriptions=()
         for ((i=0; i<${#startdates[@]}; i++)); do
           text_arrays=("${titles[i]}" "${descriptions[i]}")
@@ -227,6 +235,7 @@ while true; do
         done
         titles=("${translated_titles[@]}")
         descriptions=("${translated_descriptions[@]}")
+        wait $!
       fi
       selected=0
       while true; do
@@ -245,12 +254,13 @@ while true; do
         fi
       done
       ;;
-    Third-party)
-      #availableLocale=($(curl -sL https://bing.npanuhin.me/all.json | jq -r 'keys[]'))
+    Bing\ Wallpaper\ Archive)
+      #availableLocale=($(curl -L --progress-bar https://bing.npanuhin.me/all.json | jq -r 'keys[]'))
       availableLocale=(BR-pt CA-en CA-fr CN-zh DE-de ES-es FR-fr GB-en IN-en IT-it JP-ja ROW-en US-en)
       countryLang=$(awk -F'-' '{print $2"-"$1}' <<< "$Locale")
       grep -q "$countryLang" <<< "${availableLocale[@]}" &>/dev/null || countryLang="ROW-en"
-      responseJson=$(curl -sL https://bing.npanuhin.me/${countryLang}.json | jq -r 'reverse')
+      echo -e "$running Fetching Bing Wallpaper Archive.."
+      responseJson=$(curl -L --progress-bar https://bing.npanuhin.me/${countryLang}.json | jq -r 'reverse')
       dates=($(jq -r '.[].date' <<< "$responseJson"))
       bing_urls=($(jq -r '.[].bing_url' <<< "$responseJson"))
       mapfile -t titles < <(jq -r '.[].title' <<< "$responseJson")
@@ -501,8 +511,9 @@ while true; do
               SchedulerOpt=(None 15min 30min 1h 3h 6h 9h 12h)
               SchedulerDesc=("Don'tCheck" CheckEvery15Minutes CheckEvery30Minutes CheckEvery1Hours CheckEvery3Hours CheckEvery6Hours CheckEvery9Hours CheckEvery12Hours)
               if menu SchedulerOpt bButtons SchedulerDesc "" $selected_options; then
-                config "Scheduler" "${SchedulerOpt[selected]}"
-                reloadConfig
+                selected_options=$selected
+                Scheduler="${SchedulerOpt[selected_options]}"
+                config "Scheduler" "$Scheduler"
                 if [ "$Scheduler" == "None" ]; then
                   if [ $isAndroid == true ]; then
                     termux-job-scheduler --cancel --job-id 1501712810
@@ -550,8 +561,8 @@ while true; do
               ;;
             TimerTriggerUpdateWallpaper)
               [ "$Timer" == "None" ] && selected_buttons=0 || selected_buttons=1 
-              TimerButtons=(None Trigger); confirmPrompt "TimerTrigger" TimerButtons "$selected_buttons" && TimerOpt=None || TimerOpt=Trigger
-              if [ "$TimerOpt" == "None" ]; then
+              TimerButtons=(None Trigger); confirmPrompt "TimerTrigger" TimerButtons "$selected_buttons" && Timer=None || Timer=Trigger
+              if [ "$Timer" == "None" ]; then
                 if [ $isAndroid == true ]; then
                   sv down crond
                   (crontab -l | grep -v "SetWallpaper.sh") | crontab -
@@ -578,17 +589,15 @@ while true; do
                     systemdTimer
                   fi
                 fi
-                config "Timer" "None"
-                reloadConfig
+                config "Timer" "$Timer"
               else
                 [ -n "$Timer" ] && timer="$Timer" || timer="21:30"
-                read -r -p "Timer(24-Hour): " -i "$timer" -e Time
-                [ -z "$Time" ] && Time="None"
-                if [ "$Time" != "None" ]; then
-                  config "Timer" "$Time"
-                  reloadConfig
+                read -r -p "Timer(24-Hour): " -i "$timer" -e Timer
+                [ -z "$Timer" ] && Timer="None"
+                if [ "$Timer" != "None" ]; then
+                  config "Timer" "$Timer"
                   if [ $isAndroid == true ]; then
-                    TimerTriggerUpdateWallpaper "$Time"
+                    TimerTriggerUpdateWallpaper "$Timer"
                   elif [ $isMacOS == true ]; then
                     LaunchAgents
                   elif [ $isFedora == true ]; then
@@ -600,8 +609,7 @@ while true; do
             SetWallpaperAtBoot)
               confirmPrompt "SetWallpaperAtBoot" tfButtons "$Boot" && Boot=true || Boot=false
               config "Boot" "$Boot"
-              reloadConfig
-              if [ "$Boot" == true ]; then
+              if [ $Boot == true ]; then
                 if [ $isAndroid == true ]; then
                   UpdateWallpaperAtBoot
                 elif [ $isMacOS == true ]; then
@@ -662,14 +670,8 @@ while true; do
                       confirmPrompt "Do you want to remove this script-related dependency?" "ynButtons" "1" && response=Yes || response=No
                       case "$response" in
                         Yes)
-                          if [ $isAndroid == true ]; then
-                            pkgUninstall "jq"
-                            pkgUninstall "termux-api"
-                          elif [ $isMacOS == true ]; then
-                            formulaeUninstall "jq"
-                          elif [ $isFedora == true ]; then
-                            dnfRemove "jq"
-                          fi
+                          pkgUninstall "jq"
+                          [ $isAndroid == true ] && pkgUninstall "termux-api"
                           ;;
                       esac
                       confirmPrompt "Do you want to remove Saved BingImages from Photos?" "ynButtons" "1" && response=Yes || response=No
