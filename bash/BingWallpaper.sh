@@ -198,8 +198,8 @@ SetWallpaper() {
 
 selected_opt=0
 while true; do
-  options=("Bing Wallpapers" "Bing Wallpaper Archive" "Bing Gallery" Browse)
-  mdescriptions=("https://www.bing.com/" "https://bing.npanuhin.me/" "https://binggallery.sapphire.microsoftapp.net/api/random/" "BrowseBingImages")
+  options=("Bing Wallpapers" "Bing Wallpaper Archive" "Bing Gallery" "Windows Spotlight" Browse)
+  mdescriptions=("https://www.bing.com/" "https://bing.npanuhin.me/" "https://binggallery.sapphire.microsoftapp.net/api/random/" "https://fd.api.iris.microsoft.com/v4/api/selection?&placement=88000820&country=ROW/" "BrowseBingImages")
   [ $SaveBingImages == true ] && { options+=(SetWallpaperFromSavedBingImages); mdescriptions+=(SetWallpaperFromSavedBingImages); }
   options+=(SetWallpaperFromURL SetWallpaperFromFile Settings); mdescriptions+=(SetWallpaperFromRemoteURL SetWallpaperFromImageFile BingWallpaperSettings)
   menu options eButtons mdescriptions "" $selected_opt && selected_opt=$selected
@@ -233,8 +233,7 @@ while true; do
             [ $j -eq 0 ] && translated_titles+=("$translated_text") || translated_descriptions+=("$translated_text")
           done
         done
-        titles=("${translated_titles[@]}")
-        descriptions=("${translated_descriptions[@]}")
+        titles=("${translated_titles[@]}"); descriptions=("${translated_descriptions[@]}")
         wait $!
       fi
       selected=0
@@ -314,6 +313,76 @@ while true; do
           fi
         done
       fi
+      ;;
+    Windows\ Spotlight)
+      HotSpotsAPI=("<API v3>" "<API v4>")
+      confirmPrompt "Select Windows Spotlight" HotSpotsAPI 1 && APIv=3 || APIv=4
+      Country=$(awk -F'-' '{print $2}' <<< "$Locale")
+      if [ $APIv -eq 3 ]; then
+        languageCode=$(awk -F'-' '{print $1}' <<< "$Locale")
+        fetchSpotlightImages() {
+          spotlightJson=$(curl -sL "https://arc.msn.com/v3/Delivery/Placement?pid=209567&fmt=json&rafb=0&ua=WindowsShellClient%2F0&cdm=1&disphorzres=${displaysResolutionWidth:-9999}&dispvertres=${displaysResolutionHeight:-9999}&lo=80217&pl=${Locale}&lc=${languageCode}&ctry=${Country}&time=$(date +%Y-%m-%dT%H:%M:%SZ)" | jq '.batchrsp.items[].item |= fromjson')
+          #rendererUnits=($(jq -r '.batchrsp.items.[].item.rdr.[].u' <<< "$spotlightJson"))
+          landscapeImages=($(jq -r '.batchrsp.items.[].item.ad.image_fullscreen_001_landscape.u' <<< "$spotlightJson"))
+          portraitImages=($(jq -r '.batchrsp.items.[].item.ad.image_fullscreen_001_portrait.u' <<< "$spotlightJson"))
+          mapfile -t Titles < <(jq -r '.batchrsp.items.[].item.ad.title_text.tx' <<< "$spotlightJson")
+          #mapfile -t Copyrights < <(jq -r '.batchrsp.items.[].item.ad.copyright_text.tx' <<< "$spotlightJson")
+          startTimes=($(jq -r '.batchrsp.items.[].item.prm.startTime' <<< "$spotlightJson"))
+          Descriptions=("${startTimes[@]}")
+          parametersIdentifiers=($(jq -r '.batchrsp.items.[].item.prm._id' <<< "$spotlightJson"))
+          if [ "$Locale" == "zh-CN" ]; then
+            translated_titles=()
+            for ((i=0; i<${#Titles[@]}; i++)); do
+              encoded_text=$(jq -rn --arg text "${Titles[i]}" '$text|@uri')
+              #translated_text=$(curl -sL "https://mozhi.aryak.me/api/translate?engine=google&from=${Locale}&to=en&text=${encoded_text}" | jq -r '."translated-text"')
+              translated_text=$(curl -sL "https://translate.googleapis.com/translate_a/single?client=gtx&sl=${Locale}&tl=en&dt=t&q=${encoded_text}" | jq -r '.[0][0][0]')
+              translated_titles+=("$translated_text")
+            done
+            Titles=("${translated_titles[@]}")
+          fi
+          Titles+=(Refresh); Descriptions+=("Fetch Fresh Spotlight Images"); selected_spotlight=0
+        }; fetchSpotlightImages
+      else
+        fetchSpotlightImages() {
+          spotlightJson=$(curl -sL "https://fd.api.iris.microsoft.com/v4/api/selection?&placement=88000820&bcnt=4&country=${Country}&locale=${Locale}&fmt=json" | jq '.batchrsp.items[].item |= fromjson')
+          #rendererUnits=($(jq -r '.batchrsp.items.[].item.rdr.[].u' <<< "$spotlightJson"))
+          landscapeImages=($(jq -r '.batchrsp.items.[].item.ad.landscapeImage.asset' <<< "$spotlightJson"))
+          portraitImages=($(jq -r '.batchrsp.items.[].item.ad.portraitImage.asset' <<< "$spotlightJson"))
+          mapfile -t Titles < <(jq -r '.batchrsp.items.[].item.ad.title' <<< "$spotlightJson")
+          mapfile -t Descriptions < <(jq -r '.batchrsp.items.[].item.ad.description' <<< "$spotlightJson")
+          #mapfile -t Copyrights < <(jq -r '.batchrsp.items.[].item.ad.copyright' <<< "$spotlightJson")
+          parametersIdentifiers=($(jq -r '.batchrsp.items.[].item.prm._id' <<< "$spotlightJson"))
+          if [ "$Locale" == "zh-CN" ]; then
+            translated_titles=(); translated_descriptions=()
+            for ((i=0; i<${#Titles[@]}; i++)); do
+              text_arrays=("${Titles[i]}" "${Descriptions[i]}")
+              for ((j=0; j<${#text_arrays[@]}; j++)); do
+                encoded_text=$(jq -rn --arg text "${text_arrays[j]}" '$text|@uri')
+                #translated_text=$(curl -sL "https://mozhi.aryak.me/api/translate?engine=google&from=${Locale}&to=en&text=${encoded_text}" | jq -r '."translated-text"')
+                translated_text=$(curl -sL "https://translate.googleapis.com/translate_a/single?client=gtx&sl=${Locale}&tl=en&dt=t&q=${encoded_text}" | jq -r '.[0][0][0]')
+                [ $j -eq 0 ] && translated_titles+=("$translated_text") || translated_descriptions+=("$translated_text")
+              done
+            done
+            Titles=("${translated_titles[@]}"); Descriptions=("${translated_descriptions[@]}")
+          fi
+          Titles+=(Refresh); Descriptions+=("Fetch Fresh Spotlight Images"); selected_spotlight=0
+        }; fetchSpotlightImages
+      fi
+      while true; do
+        menu Titles bButtons Descriptions "" $selected_spotlight || break
+        selected_spotlight=$selected
+        if [ "${Titles[selected_spotlight]}" == "Refresh" ]; then
+          fetchSpotlightImages
+        else
+          landscapeImage="${landscapeImages[selected_spotlight]}"
+          portraitImage="${portraitImages[selected_spotlight]}"
+          ([ -n "$portraitImage" ] && [ "$Orientation" == "Portrait" ]) && spotlightImage="$portraitImage" || spotlightImage="$landscapeImage"
+          parametersIdentifier="${parametersIdentifiers[selected_spotlight]}"
+          file_ext="${spotlightImage##*.}"
+          fileName="${parametersIdentifier}.${file_ext}"
+          SetWallpaper "$spotlightImage" "$BingImages/$fileName"
+        fi
+      done
       ;;
     Bing\ Wallpaper\ Archive)
       #availableLocale=($(curl -L --progress-bar https://bing.npanuhin.me/all.json | jq -r 'keys[]'))
