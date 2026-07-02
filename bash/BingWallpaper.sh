@@ -207,17 +207,17 @@ while true; do
     Bing\ Wallpapers)
       declare -a startdates urls urlbases descriptions copyrights titles
       fetchBingImages() {
-        bingJson=$(curl -sL "https://www.bing.com/HPImageArchive.aspx?format=js&idx=${1}&n=7&mkt=${Locale}")
+        bingJson=$(curl -sL "https://www.bing.com/HPImageArchive.aspx?format=js&idx=${1}&n=${2}&mkt=${Locale}")
         mapfile -t -O ${#startdates[@]} startdates < <(jq -r '.images[].startdate' <<< "$bingJson")
         #mapfile -t -O ${#urls[@]} urls < <(jq -r '.images[].url' <<< "$bingJson")
         mapfile -t -O ${#urlbases[@]} urlbases < <(jq -r '.images[].urlbase' <<< "$bingJson")
         mapfile -t -O ${#descriptions[@]} descriptions < <(jq -r '.images[].copyright' <<< "$bingJson" | awk -F' \\(' '{print $1}')
         #mapfile -t -O ${#copyrights[@]} copyrights < <(jq -r '.images[].copyright' <<< "$bingJson" | awk -F' \\(' '{print $2}' | tr -d ')')
         mapfile -t -O ${#titles[@]} titles < <(jq -r '.images[].title' <<< "$bingJson")
-      }; fetchBingImages 0; fetchBingImages 7
+      }; fetchBingImages 0 7; fetchBingImages 7 8
       if [ "$Locale" == "zh-CN" ]; then
         printf "$running Translating bing-images title and description from simplified-chinese to english..\n"
-        for ((i=28; i>=1; i--)); do
+        for ((i=30; i>=1; i--)); do
           printf "$notice Please wait $i seconds !!"
           sleep 1
           printf "\r\033[K"
