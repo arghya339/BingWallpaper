@@ -271,7 +271,7 @@ while true; do
           else
             w=$(jq -r ".[$selected_random].s5" <<< "$randomJson")
             pr=$(jq -r ".[$selected_random].s14" <<< "$randomJson")
-            ([ -n "$pr" ] && [ "$Orientation" == "Portrait" ]) && binggalleryfiles="${binggallery}${pr}" || binggalleryfiles="${binggallery}${w}"
+            ([ "$pr" != "null" ] && [ "$Orientation" == "Portrait" ]) && binggalleryfiles="${binggallery}${pr}" || binggalleryfiles="${binggallery}${w}"
             file_ext="${binggalleryfiles##*.}"
             fileName="${dates[$selected_random]}.${file_ext}"
             SetWallpaper "$binggalleryfiles" "$BingImages/$fileName"
@@ -306,7 +306,7 @@ while true; do
           else
             w=$(jq -r ".[$selected_filters].s5" <<< "$filtersJson")
             pr=$(jq -r ".[$selected_filters].s14" <<< "$filtersJson")
-            ([ -n "$pr" ] && [ "$Orientation" == "Portrait" ]) && binggalleryfiles="${binggallery}${pr}" || binggalleryfiles="${binggallery}${w}"
+            ([ "$pr" != "null" ] && [ "$Orientation" == "Portrait" ]) && binggalleryfiles="${binggallery}${pr}" || binggalleryfiles="${binggallery}${w}"
             file_ext="${binggalleryfiles##*.}"
             fileName="${dates[$selected_filters]}.${file_ext}"
             SetWallpaper "$binggalleryfiles" "$BingImages/$fileName"
